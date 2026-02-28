@@ -93,12 +93,19 @@ impl UserRepository for PgUserStore {
         self.conn
             .with_conn(|conn| {
                 Box::pin(async move {
-                    sqlx::query("UPDATE users SET email = $1, name = $2 WHERE id = $3")
-                        .bind(&email)
-                        .bind(&name)
-                        .bind(id.0)
-                        .execute(&mut *conn)
-                        .await?;
+                    let result =
+                        sqlx::query("UPDATE users SET email = $1, name = $2 WHERE id = $3")
+                            .bind(&email)
+                            .bind(&name)
+                            .bind(id.0)
+                            .execute(&mut *conn)
+                            .await?;
+                    if result.rows_affected() != 1 {
+                        anyhow::bail!(
+                            "Expected 1 row updated but got {}",
+                            result.rows_affected()
+                        );
+                    }
                     Ok(())
                 })
             })
@@ -109,10 +116,16 @@ impl UserRepository for PgUserStore {
         self.conn
             .with_conn(|conn| {
                 Box::pin(async move {
-                    sqlx::query("DELETE FROM users WHERE id = $1")
+                    let result = sqlx::query("DELETE FROM users WHERE id = $1")
                         .bind(id.0)
                         .execute(&mut *conn)
                         .await?;
+                    if result.rows_affected() != 1 {
+                        anyhow::bail!(
+                            "Expected 1 row deleted but got {}",
+                            result.rows_affected()
+                        );
+                    }
                     Ok(())
                 })
             })

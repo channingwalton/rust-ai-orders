@@ -2,13 +2,14 @@ use axum::extract::State;
 use axum::routing::get;
 use axum::{Json, Router};
 
+use crate::models::HealthCheck;
+
 pub fn router() -> Router<crate::AppState> {
     Router::new().route("/health", get(health_check))
 }
 
-async fn health_check(State(state): State<crate::AppState>) -> Json<serde_json::Value> {
-    let health = state.health_service.check();
-    Json(serde_json::to_value(health).unwrap())
+async fn health_check(State(state): State<crate::AppState>) -> Json<HealthCheck> {
+    Json(state.health_service.check())
 }
 
 #[cfg(test)]

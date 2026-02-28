@@ -100,7 +100,7 @@ impl OrderRepository for PgOrderStore {
         self.conn
             .with_conn(|conn| {
                 Box::pin(async move {
-                    sqlx::query(
+                    let result = sqlx::query(
                         "UPDATE orders SET product_id = $1, quantity = $2, total_amount = $3 WHERE id = $4",
                     )
                     .bind(&product_id.0)
@@ -109,6 +109,12 @@ impl OrderRepository for PgOrderStore {
                     .bind(id.0)
                     .execute(&mut *conn)
                     .await?;
+                    if result.rows_affected() != 1 {
+                        anyhow::bail!(
+                            "Expected 1 row updated but got {}",
+                            result.rows_affected()
+                        );
+                    }
                     Ok(())
                 })
             })
@@ -119,10 +125,16 @@ impl OrderRepository for PgOrderStore {
         self.conn
             .with_conn(|conn| {
                 Box::pin(async move {
-                    sqlx::query("DELETE FROM orders WHERE id = $1")
+                    let result = sqlx::query("DELETE FROM orders WHERE id = $1")
                         .bind(id.0)
                         .execute(&mut *conn)
                         .await?;
+                    if result.rows_affected() != 1 {
+                        anyhow::bail!(
+                            "Expected 1 row deleted but got {}",
+                            result.rows_affected()
+                        );
+                    }
                     Ok(())
                 })
             })

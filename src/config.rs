@@ -22,6 +22,7 @@ pub struct ApplicationConfig {
 #[derive(Debug, Deserialize, Clone)]
 pub struct DatabaseConfig {
     pub url: String,
+    pub max_connections: u32,
 }
 
 impl AppConfig {
@@ -35,6 +36,7 @@ impl AppConfig {
                 "database.url",
                 "postgres://aiorders:password@localhost:5432/aiorders",
             )?
+            .set_default("database.max_connections", 32)?
             .add_source(config::Environment::with_prefix("APP").separator("__"))
             .build()?;
 

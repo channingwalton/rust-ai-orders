@@ -42,6 +42,9 @@ impl ServiceFactory {
     /// Execute a service operation within a database transaction.
     /// For `Pg`, begins a transaction, creates stores and services bound to it,
     /// runs the closure, and commits. For `InMemory`, delegates directly.
+    ///
+    /// If the closure returns `Err`, the early return skips `commit()` and the
+    /// transaction is automatically rolled back when dropped (sqlx semantics).
     pub async fn commit<T, F, Fut>(&self, f: F) -> Result<T, ServiceError>
     where
         F: FnOnce(OrderService) -> Fut,
@@ -81,7 +84,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Database setup
     let pool = PgPoolOptions::new()
-        .max_connections(32)
+        .max_connections(config.database.max_connections)
         .connect(&config.database.url)
         .await?;
 

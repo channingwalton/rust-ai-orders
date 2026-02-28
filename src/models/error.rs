@@ -16,6 +16,9 @@ pub enum ServiceError {
     #[error("Invalid JSON request: {0}")]
     InvalidJsonRequest(String),
 
+    #[error("Validation error: {0}")]
+    ValidationError(String),
+
     #[error("Database error: {0}")]
     DatabaseError(String),
 }
@@ -26,8 +29,13 @@ impl IntoResponse for ServiceError {
             ServiceError::UserNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             ServiceError::OrderNotFound(_) => (StatusCode::NOT_FOUND, self.to_string()),
             ServiceError::InvalidJsonRequest(_) => (StatusCode::BAD_REQUEST, self.to_string()),
-            ServiceError::DatabaseError(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, self.to_string())
+            ServiceError::ValidationError(_) => (StatusCode::BAD_REQUEST, self.to_string()),
+            ServiceError::DatabaseError(inner) => {
+                tracing::error!("Database error: {}", inner);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "Internal server error".to_string(),
+                )
             }
         };
 

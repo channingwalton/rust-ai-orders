@@ -59,7 +59,9 @@ impl DbConn {
             }
             Self::Tx(tx) => {
                 let mut guard = tx.lock().await;
-                let tx_ref = guard.as_mut().expect("transaction already committed");
+                let tx_ref = guard
+                    .as_mut()
+                    .ok_or_else(|| anyhow::anyhow!("transaction already committed"))?;
                 f(tx_ref).await
             }
         }
