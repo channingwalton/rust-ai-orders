@@ -2,8 +2,6 @@ use std::sync::Arc;
 
 use chrono::Utc;
 
-use rust_decimal::Decimal;
-
 use crate::models::{CreateOrderRequest, Order, OrderId, OrderListResponse, ServiceError, UserId};
 use crate::store::OrderRepository;
 
@@ -24,17 +22,6 @@ impl OrderService {
     }
 
     pub async fn create_order(&self, req: CreateOrderRequest) -> Result<Order, ServiceError> {
-        if req.quantity <= 0 {
-            return Err(ServiceError::ValidationError(
-                "Quantity must be positive".to_string(),
-            ));
-        }
-        if req.total_amount < Decimal::ZERO {
-            return Err(ServiceError::ValidationError(
-                "Total amount must not be negative".to_string(),
-            ));
-        }
-
         // Validate user exists
         if !self.user_service.user_exists(req.user_id).await? {
             return Err(ServiceError::UserNotFound(req.user_id));

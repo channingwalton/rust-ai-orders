@@ -22,7 +22,7 @@ A Rust port of [ai-orders](https://github.com/channingwalton/ai-orders), a RESTf
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check with status, timestamp, app info |
-| `POST` | `/orders` | Create an order (validates user exists, quantity > 0, amount >= 0) |
+| `POST` | `/orders` | Create an order (validates user exists) |
 | `GET` | `/orders/user/{userId}` | List orders for a user (newest first) |
 
 ## Transaction Boundary
