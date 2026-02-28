@@ -22,15 +22,36 @@ A Rust port of [ai-orders](https://github.com/channingwalton/ai-orders), a RESTf
 | Method | Path | Description |
 |--------|------|-------------|
 | `GET` | `/health` | Health check with status, timestamp, app info |
-| `POST` | `/orders` | Create an order (validates user exists) |
+| `POST` | `/orders` | Create an order (validates user exists, quantity > 0, amount >= 0) |
 | `GET` | `/orders/user/{userId}` | List orders for a user (newest first) |
+
+## Transaction Boundary
+
+The Scala original uses a two-functor pattern (`OrderStore[F[_], G[_]]`) with `store.commit(...)` to wrap service calls in a database transaction at the route level.
+
+The Rust port mirrors this with `ServiceFactory::commit()`:
+
+```rust
+// Route handler — all service operations run in a single transaction
+state.service_factory
+    .commit(|svc| async move { svc.create_order(req).await })
+    .await
+```
+
+`ServiceFactory` has two variants:
+
+- **`Pg(PgPool)`** — begins a transaction, creates stores and services bound to it, executes the closure, and commits. If the closure returns an error, the transaction is rolled back on drop (sqlx semantics).
+- **`InMemory`** — delegates directly to in-memory services (used in tests).
+
+The underlying `DbConn` enum (`Pool | Tx`) allows stores to work transparently against either a connection pool or a shared transaction.
 
 ## Project Structure
 
 ```
 src/
-├── main.rs              # Entry point, wiring
+├── main.rs              # Entry point, AppState, ServiceFactory
 ├── config.rs            # AppConfig with env var overrides (APP__ prefix)
+├── db.rs                # DbConn (Pool | Tx) transaction abstraction
 ├── models/
 │   ├── user.rs          # UserId, User
 │   ├── order.rs         # OrderId, ProductId, Order, DTOs
@@ -63,7 +84,7 @@ docker run -d --name pg -e POSTGRES_USER=aiorders -e POSTGRES_PASSWORD=password 
 cargo run
 
 # Override config via environment
-APP__SERVER__PORT=9090 APP__DATABASE__URL=postgres://user:pass@host/db cargo run
+APP__SERVER__PORT=9090 APP__DATABASE__URL=postgres://user:pass@host/db APP__DATABASE__MAX_CONNECTIONS=16 cargo run
 ```
 
 ## Testing
