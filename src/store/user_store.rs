@@ -101,10 +101,7 @@ impl UserRepository for PgUserStore {
                             .execute(&mut *conn)
                             .await?;
                     if result.rows_affected() != 1 {
-                        anyhow::bail!(
-                            "Expected 1 row updated but got {}",
-                            result.rows_affected()
-                        );
+                        anyhow::bail!("Expected 1 row updated but got {}", result.rows_affected());
                     }
                     Ok(())
                 })
@@ -121,10 +118,7 @@ impl UserRepository for PgUserStore {
                         .execute(&mut *conn)
                         .await?;
                     if result.rows_affected() != 1 {
-                        anyhow::bail!(
-                            "Expected 1 row deleted but got {}",
-                            result.rows_affected()
-                        );
+                        anyhow::bail!("Expected 1 row deleted but got {}", result.rows_affected());
                     }
                     Ok(())
                 })

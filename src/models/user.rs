@@ -7,9 +7,15 @@ use uuid::Uuid;
 #[sqlx(transparent)]
 pub struct UserId(pub Uuid);
 
+impl Default for UserId {
+    fn default() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
 impl UserId {
     pub fn new() -> Self {
-        Self(Uuid::new_v4())
+        Self::default()
     }
 }
 

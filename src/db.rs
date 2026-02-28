@@ -16,6 +16,7 @@ type SharedTx = Arc<Mutex<Option<Transaction<'static, Postgres>>>>;
 /// at the route level, mirroring Scala's `store.commit(...)` pattern.
 #[derive(Clone)]
 pub enum DbConn {
+    #[allow(dead_code)]
     Pool(PgPool),
     Tx(SharedTx),
 }
@@ -33,11 +34,9 @@ impl DbConn {
     /// Commit the transaction. No-op for pool connections.
     pub async fn commit(&self) -> Result<(), ServiceError> {
         if let Self::Tx(tx) = self {
-            let tx = tx
-                .lock()
-                .await
-                .take()
-                .ok_or_else(|| ServiceError::DatabaseError("transaction already committed".into()))?;
+            let tx = tx.lock().await.take().ok_or_else(|| {
+                ServiceError::DatabaseError("transaction already committed".into())
+            })?;
             tx.commit()
                 .await
                 .map_err(|e| ServiceError::DatabaseError(e.to_string()))?;
@@ -50,7 +49,9 @@ impl DbConn {
     pub async fn with_conn<T, F>(&self, f: F) -> anyhow::Result<T>
     where
         T: Send,
-        F: for<'c> FnOnce(&'c mut PgConnection) -> Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send + 'c>>,
+        F: for<'c> FnOnce(
+            &'c mut PgConnection,
+        ) -> Pin<Box<dyn Future<Output = anyhow::Result<T>> + Send + 'c>>,
     {
         match self {
             Self::Pool(pool) => {

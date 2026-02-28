@@ -10,9 +10,15 @@ use super::user::UserId;
 #[sqlx(transparent)]
 pub struct OrderId(pub Uuid);
 
+impl Default for OrderId {
+    fn default() -> Self {
+        Self(Uuid::new_v4())
+    }
+}
+
 impl OrderId {
     pub fn new() -> Self {
-        Self(Uuid::new_v4())
+        Self::default()
     }
 }
 

@@ -2,8 +2,8 @@ use std::future::Future;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::EnvFilter;

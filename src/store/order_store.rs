@@ -130,10 +130,7 @@ impl OrderRepository for PgOrderStore {
                         .execute(&mut *conn)
                         .await?;
                     if result.rows_affected() != 1 {
-                        anyhow::bail!(
-                            "Expected 1 row deleted but got {}",
-                            result.rows_affected()
-                        );
+                        anyhow::bail!("Expected 1 row deleted but got {}", result.rows_affected());
                     }
                     Ok(())
                 })
@@ -145,10 +142,10 @@ impl OrderRepository for PgOrderStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::order::ProductId;
     use crate::models::User;
-    use crate::store::user_store::PgUserStore;
+    use crate::models::order::ProductId;
     use crate::store::UserRepository;
+    use crate::store::user_store::PgUserStore;
     use chrono::{SubsecRound, Utc};
     use rust_decimal_macros::dec;
     use sqlx::postgres::PgPoolOptions;
