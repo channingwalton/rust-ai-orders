@@ -45,6 +45,12 @@ state.service_factory
 
 The underlying `DbConn` enum (`Pool | Tx`) allows stores to work transparently against either a connection pool or a shared transaction.
 
+### Difference from Scala
+
+The Scala version enforces transactionality through the type system. Services return `G[A]` (`ConnectionIO[A]`), and the only way to obtain an `F[A]` (`IO[A]`) — which routes need — is through `store.commit(g: G[A]): F[A]`. The compiler makes it a type error to run a service operation without a transaction.
+
+The Rust version relies on convention rather than enforcement. `ServiceFactory::commit()` is the intended entry point, and `AppState` only exposes `ServiceFactory` (not `OrderService` directly), making misuse harder but not impossible. Rust lacks higher-kinded types, so the Scala pattern of separating `ConnectionIO` from `IO` at the type level cannot be directly replicated.
+
 ## Project Structure
 
 ```
