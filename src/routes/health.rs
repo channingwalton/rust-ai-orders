@@ -21,7 +21,7 @@ mod tests {
     use crate::config::ApplicationConfig;
     use crate::services::HealthService;
     use crate::test_helpers;
-    use crate::AppState;
+    use crate::{AppState, ServiceFactory};
 
     fn test_app() -> axum::Router {
         let (_, order_service) = test_helpers::create_services();
@@ -31,7 +31,7 @@ mod tests {
         });
         let state = AppState {
             health_service,
-            order_service,
+            service_factory: ServiceFactory::InMemory { order_service },
         };
         crate::routes::health::router()
             .merge(crate::routes::orders::router())
@@ -101,7 +101,7 @@ mod tests {
         });
         let state = AppState {
             health_service,
-            order_service,
+            service_factory: ServiceFactory::InMemory { order_service },
         };
         let app = crate::routes::health::router().with_state(state);
 

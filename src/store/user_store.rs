@@ -1,79 +1,122 @@
 use async_trait::async_trait;
-use sqlx::PgPool;
 
 use super::UserRepository;
+use crate::db::DbConn;
 use crate::models::{User, UserId};
 
 #[derive(Clone)]
 pub struct PgUserStore {
-    pool: PgPool,
+    conn: DbConn,
 }
 
 impl PgUserStore {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(conn: DbConn) -> Self {
+        Self { conn }
     }
 }
 
 #[async_trait]
 impl UserRepository for PgUserStore {
     async fn create(&self, user: &User) -> anyhow::Result<()> {
-        sqlx::query("INSERT INTO users (id, email, name, created_at) VALUES ($1, $2, $3, $4)")
-            .bind(user.id.0)
-            .bind(&user.email)
-            .bind(&user.name)
-            .bind(user.created_at)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+        let id = user.id;
+        let email = user.email.clone();
+        let name = user.name.clone();
+        let created_at = user.created_at;
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query(
+                        "INSERT INTO users (id, email, name, created_at) VALUES ($1, $2, $3, $4)",
+                    )
+                    .bind(id.0)
+                    .bind(&email)
+                    .bind(&name)
+                    .bind(created_at)
+                    .execute(&mut *conn)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     async fn find_by_id(&self, id: UserId) -> anyhow::Result<Option<User>> {
-        Ok(
-            sqlx::query_as::<_, User>(
-                "SELECT id, email, name, created_at FROM users WHERE id = $1",
-            )
-            .bind(id.0)
-            .fetch_optional(&self.pool)
-            .await?,
-        )
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    Ok(sqlx::query_as::<_, User>(
+                        "SELECT id, email, name, created_at FROM users WHERE id = $1",
+                    )
+                    .bind(id.0)
+                    .fetch_optional(&mut *conn)
+                    .await?)
+                })
+            })
+            .await
     }
 
     async fn find_by_email(&self, email: &str) -> anyhow::Result<Option<User>> {
-        Ok(
-            sqlx::query_as::<_, User>(
-                "SELECT id, email, name, created_at FROM users WHERE email = $1",
-            )
-            .bind(email)
-            .fetch_optional(&self.pool)
-            .await?,
-        )
+        let email = email.to_string();
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    Ok(sqlx::query_as::<_, User>(
+                        "SELECT id, email, name, created_at FROM users WHERE email = $1",
+                    )
+                    .bind(&email)
+                    .fetch_optional(&mut *conn)
+                    .await?)
+                })
+            })
+            .await
     }
 
     async fn exists(&self, id: UserId) -> anyhow::Result<bool> {
-        let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
-            .bind(id.0)
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(row.0)
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    let row: (bool,) =
+                        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM users WHERE id = $1)")
+                            .bind(id.0)
+                            .fetch_one(&mut *conn)
+                            .await?;
+                    Ok(row.0)
+                })
+            })
+            .await
     }
 
     async fn update(&self, user: &User) -> anyhow::Result<()> {
-        sqlx::query("UPDATE users SET email = $1, name = $2 WHERE id = $3")
-            .bind(&user.email)
-            .bind(&user.name)
-            .bind(user.id.0)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+        let id = user.id;
+        let email = user.email.clone();
+        let name = user.name.clone();
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query("UPDATE users SET email = $1, name = $2 WHERE id = $3")
+                        .bind(&email)
+                        .bind(&name)
+                        .bind(id.0)
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     async fn delete(&self, id: UserId) -> anyhow::Result<()> {
-        sqlx::query("DELETE FROM users WHERE id = $1")
-            .bind(id.0)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query("DELETE FROM users WHERE id = $1")
+                        .bind(id.0)
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 }
 
@@ -96,7 +139,7 @@ mod tests {
             .await
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
-        (container, PgUserStore::new(pool))
+        (container, PgUserStore::new(DbConn::Pool(pool)))
     }
 
     fn test_user(email: &str, name: &str) -> User {

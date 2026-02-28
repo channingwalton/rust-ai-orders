@@ -1,85 +1,132 @@
 use async_trait::async_trait;
-use sqlx::PgPool;
 
 use super::OrderRepository;
+use crate::db::DbConn;
 use crate::models::{Order, OrderId, UserId};
 
 #[derive(Clone)]
 pub struct PgOrderStore {
-    pool: PgPool,
+    conn: DbConn,
 }
 
 impl PgOrderStore {
-    pub fn new(pool: PgPool) -> Self {
-        Self { pool }
+    pub fn new(conn: DbConn) -> Self {
+        Self { conn }
     }
 }
 
 #[async_trait]
 impl OrderRepository for PgOrderStore {
     async fn insert(&self, order: &Order) -> anyhow::Result<()> {
-        sqlx::query(
-            "INSERT INTO orders (id, user_id, product_id, quantity, total_amount, created_at) \
-             VALUES ($1, $2, $3, $4, $5, $6)",
-        )
-        .bind(order.id.0)
-        .bind(order.user_id.0)
-        .bind(&order.product_id.0)
-        .bind(order.quantity)
-        .bind(order.total_amount)
-        .bind(order.created_at)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+        let id = order.id;
+        let user_id = order.user_id;
+        let product_id = order.product_id.clone();
+        let quantity = order.quantity;
+        let total_amount = order.total_amount;
+        let created_at = order.created_at;
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query(
+                        "INSERT INTO orders (id, user_id, product_id, quantity, total_amount, created_at) \
+                         VALUES ($1, $2, $3, $4, $5, $6)",
+                    )
+                    .bind(id.0)
+                    .bind(user_id.0)
+                    .bind(&product_id.0)
+                    .bind(quantity)
+                    .bind(total_amount)
+                    .bind(created_at)
+                    .execute(&mut *conn)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     async fn find_by_id(&self, id: OrderId) -> anyhow::Result<Option<Order>> {
-        Ok(sqlx::query_as::<_, Order>(
-            "SELECT id, user_id, product_id, quantity, total_amount, created_at \
-             FROM orders WHERE id = $1",
-        )
-        .bind(id.0)
-        .fetch_optional(&self.pool)
-        .await?)
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    Ok(sqlx::query_as::<_, Order>(
+                        "SELECT id, user_id, product_id, quantity, total_amount, created_at \
+                         FROM orders WHERE id = $1",
+                    )
+                    .bind(id.0)
+                    .fetch_optional(&mut *conn)
+                    .await?)
+                })
+            })
+            .await
     }
 
     async fn find_by_user_id(&self, user_id: UserId) -> anyhow::Result<Vec<Order>> {
-        Ok(sqlx::query_as::<_, Order>(
-            "SELECT id, user_id, product_id, quantity, total_amount, created_at \
-             FROM orders WHERE user_id = $1 ORDER BY created_at DESC",
-        )
-        .bind(user_id.0)
-        .fetch_all(&self.pool)
-        .await?)
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    Ok(sqlx::query_as::<_, Order>(
+                        "SELECT id, user_id, product_id, quantity, total_amount, created_at \
+                         FROM orders WHERE user_id = $1 ORDER BY created_at DESC",
+                    )
+                    .bind(user_id.0)
+                    .fetch_all(&mut *conn)
+                    .await?)
+                })
+            })
+            .await
     }
 
     async fn exists(&self, id: OrderId) -> anyhow::Result<bool> {
-        let row: (bool,) = sqlx::query_as("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1)")
-            .bind(id.0)
-            .fetch_one(&self.pool)
-            .await?;
-        Ok(row.0)
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    let row: (bool,) =
+                        sqlx::query_as("SELECT EXISTS(SELECT 1 FROM orders WHERE id = $1)")
+                            .bind(id.0)
+                            .fetch_one(&mut *conn)
+                            .await?;
+                    Ok(row.0)
+                })
+            })
+            .await
     }
 
     async fn update(&self, order: &Order) -> anyhow::Result<()> {
-        sqlx::query(
-            "UPDATE orders SET product_id = $1, quantity = $2, total_amount = $3 WHERE id = $4",
-        )
-        .bind(&order.product_id.0)
-        .bind(order.quantity)
-        .bind(order.total_amount)
-        .bind(order.id.0)
-        .execute(&self.pool)
-        .await?;
-        Ok(())
+        let id = order.id;
+        let product_id = order.product_id.clone();
+        let quantity = order.quantity;
+        let total_amount = order.total_amount;
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query(
+                        "UPDATE orders SET product_id = $1, quantity = $2, total_amount = $3 WHERE id = $4",
+                    )
+                    .bind(&product_id.0)
+                    .bind(quantity)
+                    .bind(total_amount)
+                    .bind(id.0)
+                    .execute(&mut *conn)
+                    .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 
     async fn delete(&self, id: OrderId) -> anyhow::Result<()> {
-        sqlx::query("DELETE FROM orders WHERE id = $1")
-            .bind(id.0)
-            .execute(&self.pool)
-            .await?;
-        Ok(())
+        self.conn
+            .with_conn(|conn| {
+                Box::pin(async move {
+                    sqlx::query("DELETE FROM orders WHERE id = $1")
+                        .bind(id.0)
+                        .execute(&mut *conn)
+                        .await?;
+                    Ok(())
+                })
+            })
+            .await
     }
 }
 
@@ -107,10 +154,11 @@ mod tests {
             .await
             .unwrap();
         sqlx::migrate!("./migrations").run(&pool).await.unwrap();
+        let conn = DbConn::Pool(pool);
         (
             container,
-            PgUserStore::new(pool.clone()),
-            PgOrderStore::new(pool),
+            PgUserStore::new(conn.clone()),
+            PgOrderStore::new(conn),
         )
     }
 
@@ -123,7 +171,12 @@ mod tests {
         }
     }
 
-    fn test_order(user_id: UserId, product: &str, qty: i32, amount: rust_decimal::Decimal) -> Order {
+    fn test_order(
+        user_id: UserId,
+        product: &str,
+        qty: i32,
+        amount: rust_decimal::Decimal,
+    ) -> Order {
         Order {
             id: OrderId::new(),
             user_id,
@@ -164,7 +217,6 @@ mod tests {
         assert_eq!(orders.len(), 2);
         assert!(orders.contains(&order1));
         assert!(orders.contains(&order2));
-        // Should be sorted DESC by created_at
         assert!(orders[0].created_at >= orders[1].created_at);
     }
 

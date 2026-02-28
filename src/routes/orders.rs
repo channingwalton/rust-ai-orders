@@ -20,7 +20,10 @@ async fn create_order(
 ) -> Result<impl IntoResponse, ServiceError> {
     let Json(req) =
         payload.map_err(|e| ServiceError::InvalidJsonRequest(e.body_text().to_string()))?;
-    let order = state.order_service.create_order(req).await?;
+    let order = state
+        .service_factory
+        .commit(|svc| async move { svc.create_order(req).await })
+        .await?;
     Ok((StatusCode::CREATED, Json(order)))
 }
 
@@ -29,8 +32,8 @@ async fn get_orders_by_user(
     Path(user_id): Path<Uuid>,
 ) -> Result<impl IntoResponse, ServiceError> {
     let response = state
-        .order_service
-        .get_orders_by_user(UserId(user_id))
+        .service_factory
+        .commit(|svc| async move { svc.get_orders_by_user(UserId(user_id)).await })
         .await?;
     Ok(Json(response))
 }
@@ -46,7 +49,7 @@ mod tests {
     use crate::models::{CreateOrderRequest, UserId};
     use crate::services::HealthService;
     use crate::test_helpers;
-    use crate::AppState;
+    use crate::{AppState, ServiceFactory};
 
     async fn test_app_with_user() -> (axum::Router, UserId) {
         let (user_service, order_service) = test_helpers::create_services();
@@ -61,7 +64,7 @@ mod tests {
         });
         let state = AppState {
             health_service,
-            order_service,
+            service_factory: ServiceFactory::InMemory { order_service },
         };
         let app = crate::routes::health::router()
             .merge(crate::routes::orders::router())
@@ -160,7 +163,7 @@ mod tests {
         });
         let state = AppState {
             health_service,
-            order_service,
+            service_factory: ServiceFactory::InMemory { order_service },
         };
         let app = crate::routes::orders::router().with_state(state);
 
